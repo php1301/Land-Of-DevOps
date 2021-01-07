@@ -1,0 +1,137 @@
+#- hosts: '"manager" "worker"'
+- hosts: manager:worker
+  become: yes
+  tasks:
+
+    - name: APT update
+      apt:
+        update_cache: yes
+
+    - name: Install require packages
+      apt:
+        pkg:
+        - apt-transport-https
+        - ca-certificates
+        - gnupg-agent
+        - curl
+        - software-properties-common
+
+    - name: Add an Apt signing key, uses whichever key is at the URL
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Fingerprint
+      shell: apt-key fingerprint 0EBFCD88
+
+    - name: Add specified repository into sources list
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
+        state: present
+
+    - name: Install require packages
+      apt:
+        update_cache: yes
+        pkg:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+
+    - name: Test docker-ce
+      shell: docker run hello-world
+      register: result
+
+    - debug:
+        var: result.stdout
+- hosts: manager
+  become: true
+  tasks:
+    # - name: Check if manager is in Swarm mode
+    #   shell: "{{ item }}"
+    #   register: is_docker_swarm
+    #   with_items: 
+    #    - if [ "$(docker info | grep Swarm | sed 's/Swarm: //g')" == "inactive" ]; then
+    #    - echo false;
+    #    - else
+    #    - echo true;
+    #    - fi
+
+    - name: Check if manager is in Swarm mode
+      register: is_docker_swarm
+      shell: |
+        if [ "$(docker info | grep Swarm | sed 's/Swarm: //g')" == "inactive" ]; then
+        echo false;
+        else
+        echo true;
+        fi
+       
+    - name: Test 2
+      debug: msg="{{is_docker_swarm.stdout}}"
+
+    # - name: leave docker swarm
+    #   shell: docker swarm leave --force
+    #   when: "{{is_docker_swarm.stdout}}" == false
+
+    - name: Initialize docker swarm
+      shell: docker swarm init --advertise-addr enp0s8
+      when: is_docker_swarm.stdout == false
+      
+    - name: Manager IP 
+      # tags: test
+      shell: echo {{ ansible_enp0s8.ipv4.address }}
+      register: manager_ip
+      # debug: var=ansible_enp0s8.ipv4.address
+
+    - name: Manager token 
+      # tags: test
+      shell: docker swarm join-token worker -q
+      # debug: var=manager_ip
+      register: manager_token 
+
+    # - name: Set token accross hosts
+    #   tags: test 
+    #   set_fact: manager_token_var="{{manager_token.stdout}}"
+
+    # host de chua cac variables across host
+    - name: Set token across hosts
+      # tags: test 
+      add_host:
+        name: "variable_holder"
+        token_manager_shared:  "{{ manager_token.stdout }}"
+        ip_manager_shared: "{{ manager_ip.stdout }}"
+    
+
+
+- hosts: worker
+  become: true
+  vars: 
+    token: "{{ hostvars['variable_holder']['token_manager_shared'] }}"
+    ip: "{{ hostvars['variable_holder']['ip_manager_shared'] }}"
+  tasks:  
+    - name: leave docker swarm
+      shell: docker swarm leave --force
+
+    - name: Test join manager 
+      tags: test
+      debug: msg="{{ip}}, {{token}}"
+
+    - name: Join manager 
+      shell: docker swarm join {{ ip }}:2377 --token {{ token }}
+  
+
+- hosts: manager
+  become: true
+  tasks:
+    - name: Check docker swarm
+      shell: docker node ls 
+      register: node_ls 
+    - name: Multi debug 
+      debug:
+        msg:
+          - "{{ node_ls.stdout }}"
+    - name: Create volume Portainer
+      tags: portainer
+      shell: docker volume create portainer_data
+    - name: Run Portainer on port 8000 and 9000
+      tags: portainer
+      shell:  docker run -d -p 8000:8000 -p 9000:9000 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce
