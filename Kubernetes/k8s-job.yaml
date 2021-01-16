@@ -1,0 +1,12 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: py
+spec:
+  template:
+    spec:
+      containers:
+      - name: py
+        image: python
+        command: ["python", "SUCCESS"]
+      restartPolicy: Never
