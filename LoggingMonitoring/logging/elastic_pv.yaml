@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data
+  namespace: kube-logging
+  labels:
+    app: elasticsearch
+spec:
+    accessModes:
+    - ReadWriteOnce
+    storageClassName: do-block-storage # DigitiaOcean K8s cluster
+    resources:
+        requests:
+          storage: 100Gi
