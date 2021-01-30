@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argo-cd-test
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: argo-cd-test
+  template:
+    metadata:
+      labels:
+        app: argo-cd-test
+    spec:
+      containers:
+      - image: registry.gitlab.com/php1301/argocd:master
+        name: argo-cd-test
+        ports:
+        - containerPort: 8080
+        # Xu ly private registry
+      imagePullSecrets:
+      - name: depcred
