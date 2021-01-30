@@ -8,3 +8,31 @@ spec:
     name: nginx
     ports:
     - containerPort: 80
+    # Limit lai resource, neu khong co se lay toan bo tai nguyen cua k8s 
+    resources:
+      limits:
+        cpu: 800m
+        memory: 1Gi
+      requests:
+        cpu: 400m
+        memory: 700Mi
+    volumeMounts:
+    - mountPath: /usr/share/nginx/html
+      name: workdir
+  dnsPolicy: Default
+  # chi chay dung mot lan, cac tac vu chay khi khoi dong container
+  # vi du nhu setting app
+  # database migration
+  initContainers:
+  - command:
+    - wget
+    - -O
+    - /work-dir/index.html
+    - http://kubernetes.io
+    image: busybox
+    name: install
+    volumeMounts:
+    - mountPath: /work-dir
+      name: workdir
+  volumes:
+  - name: workdir
